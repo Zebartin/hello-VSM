@@ -196,11 +196,7 @@ def _cal_similarity_proc(i, j, docs, tf_idfs):
     return ret / (docs[i]['norm'] * docs[j]['norm'])
 ```
 
-以下为尝试了不同并行数的结果，本机使用的处理器为Intel i5-9300H，是8核处理器。由以下结果可知，选取4并行数比较合适。
-
-![image-20211103160546827](C:\Users\98200\AppData\Roaming\Typora\typora-user-images\image-20211103160546827.png)
-
-使用多进程优化后耗时在20秒左右，计算速度提升1倍左右。
+尝试了不同并行数，最后选取4为并行数。使用多进程优化后耗时在20秒左右，计算速度提升1倍左右。
 
 ## 结果验证
 
