@@ -1,5 +1,5 @@
-from collections import defaultdict, Counter
 import math
+from collections import Counter, defaultdict
 
 
 def read_file(file_name='199801_clear.txt'):
@@ -17,9 +17,11 @@ def read_file(file_name='199801_clear.txt'):
     inverted = defaultdict(dict)    # 倒排索引
     doc_counter = Counter()
     doc_id = ''
+    doc_content = ''
 
     def update_doc():
         """录入当前计数器的结果"""
+        nonlocal doc_content
         doc_len = sum(doc_counter.values())
         if doc_len == 0:
             return
@@ -28,11 +30,13 @@ def read_file(file_name='199801_clear.txt'):
             'id': doc_id,
             'max_tf': doc_counter.most_common(1)[0][1],
             'length': doc_len,
-            'words': set(doc_counter.keys())
+            'words': set(doc_counter.keys()),
+            'content': doc_content
         })
         for word in doc_counter:
             inverted[word][index] = doc_counter[word]
         doc_counter.clear()
+        doc_content = ''
 
     def filtered_words(words):
         """去除不符合条件的词语"""
@@ -44,61 +48,65 @@ def read_file(file_name='199801_clear.txt'):
             ret.append(t)
         return ret
 
+    def split_word(word):
+        """分离词语和词性"""
+        try:
+            t = word.rindex('/')
+        except ValueError:
+            return word
+        return word[:t]
+
     with open(file_name, 'r', encoding='gbk') as f:
         while True:
             # 读文件直到EOF
             l = f.readline()
             if not l:
+                # 录入最后一篇document
+                update_doc()
                 break
             l = l.split('  ')
-            # 当前document已结束
             if l[0] == '\n':
-                update_doc()
                 continue
-            # 记录document id并更新词语计数器
-            doc_id = l[0][6:15]
+            cur_doc_id = l[0][6:15]
+            # 当前document已结束
+            if doc_id != cur_doc_id:
+                update_doc()
+                doc_id = cur_doc_id
             doc_counter.update(filtered_words(l[1:]))
-        # 录入最后一篇document
-        update_doc()            
+            doc_content += ''.join([split_word(w) for w in l[1:]])
 
     return doc_info, inverted
 
 
 def cal_tf_idf(docs, words):
+    """计算各个词语在不同文档中的tf-idf"""
     n = len(docs)
     ret = defaultdict(dict)
     for w in words:
         idf = math.log(n/len(words[w]))
-        for i in words[w]:
-            ret[w][i] = words[w][i] / docs[i]['max_tf'] * idf
+        for doc_index in words[w]:
+            ret[w][doc_index] = words[w][doc_index] / \
+                docs[doc_index]['max_tf'] * idf
     return ret
 
 
 def cal_doc_norm(docs, tf_idfs):
+    """计算每个文档向量的模长"""
     for i in range(len(docs)):
         vec_square = [tf_idfs[w][i] * tf_idfs[w][i] for w in docs[i]['words']]
         docs[i]['norm'] = math.sqrt(sum(vec_square))
 
 
 def cal_similarity(docs, tf_idfs):
+    """计算两两之间的的相似度"""
     n = len(docs)
     ret = []
     for i in range(n):
-        for j in range(i, n):
+        for j in range(i + 1, n):
+            # 只考虑交集内的词语
             common_words = docs[i]['words'] & docs[j]['words']
             similarity = 0
             for w in common_words:
                 similarity += tf_idfs[w][i] * tf_idfs[w][j]
             ret.append(similarity / (docs[i]['norm'] * docs[j]['norm']))
     return ret
-
-
-def main():
-    docs, words = read_file()
-    tf_idfs = cal_tf_idf(docs, words)
-    cal_doc_norm(docs, tf_idfs)
-    res = cal_similarity(docs, tf_idfs)
-
-
-if __name__ == '__main__':
-    main()
