@@ -1,5 +1,7 @@
 import math
+import multiprocessing
 from collections import Counter, defaultdict
+from functools import partial
 
 
 def read_file(file_name='199801_clear.txt'):
@@ -110,3 +112,31 @@ def cal_similarity(docs, tf_idfs):
                 similarity += tf_idfs[w][i] * tf_idfs[w][j]
             ret.append(similarity / (docs[i]['norm'] * docs[j]['norm']))
     return ret
+
+
+def cal_similarity_mp(docs, tf_idfs, pnum=multiprocessing.cpu_count()):
+    """计算两两之间的的相似度（多进程版）"""
+    n = len(docs)
+    proc = partial(_cal_similarity_proc, docs=docs, tf_idfs=tf_idfs)
+    with multiprocessing.Pool(processes=pnum) as p:
+        return p.starmap(proc, [(i, j) for i in range(n) for j in range(i + 1, n)])
+
+
+def _cal_similarity_proc(i, j, docs, tf_idfs):
+    # 只考虑交集内的词语
+    common_words = docs[i]['words'] & docs[j]['words']
+    ret = 0
+    for w in common_words:
+        ret += tf_idfs[w][i] * tf_idfs[w][j]
+    return ret / (docs[i]['norm'] * docs[j]['norm'])
+
+
+if __name__ == '__main__':
+    docs, words = read_file()
+    tf_idfs = cal_tf_idf(docs, words)
+    cal_doc_norm(docs, tf_idfs)
+    import time
+    for i in range(multiprocessing.cpu_count()):
+        t = time.time()
+        cal_similarity_mp(docs, tf_idfs, pnum=i+1)
+        print(f'并行数{i+1}：耗时{time.time()-t:.3f}s')
